@@ -9,11 +9,7 @@ module Fog
         undef_method :create
 
         def all
-          raw_orgs = if service.version == '1.0'
-            service.login
-          else
-            service.request(service.basic_request_params("#{service.base_path_url}/org/"))
-          end
+          raw_orgs = service.get_organizations
           data = raw_orgs.body[:Org]
           load(data)
         end

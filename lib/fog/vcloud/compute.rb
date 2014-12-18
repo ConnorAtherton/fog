@@ -1,4 +1,8 @@
 require 'fog/vcloud/core'
+require 'json'
+
+# Alias json module to avoid name conflicts
+RJSON = JSON
 
 module Fog
   module Vcloud
@@ -69,15 +73,15 @@ module Fog
   module Vcloud
     class Compute < Fog::Service
       BASE_PATH   = '/api'
-      DEFAULT_VERSION = '1.5'
-      SUPPORTED_VERSIONS = [ '1.5', '1.0' ]
+      VERSION = '5.7'
+      DEFAULT_HOST_URL = "beta2014.vchs.vmware.com"
       PORT   = 443
       SCHEME = 'https'
 
-      attr_writer :default_organization_uri
+      attr_writer :default_vdc_uri
 
-      requires   :vcloud_username, :vcloud_password, :vcloud_host
-      recognizes :vcloud_port, :vcloud_scheme, :vcloud_path, :vcloud_default_vdc, :vcloud_version, :vcloud_base_path
+      requires   :vcloud_username, :vcloud_password
+      recognizes :vcloud_port, :vcloud_scheme, :vcloud_path, :vcloud_version, :vcloud_base_path
       recognizes :provider # remove post deprecation
 
       model_path 'fog/vcloud/models/compute'
@@ -136,6 +140,14 @@ module Fog
       request :configure_metadata
       request :configure_vm_customization_script
 
+      # Added for the new API
+      model :plan
+      collection :plans
+
+      request :get_plans
+      request :get_instances
+      request :get_organizations
+
       class Mock
         def initialize(options={})
           Fog::Mock.not_implemented
@@ -143,56 +155,28 @@ module Fog
       end
 
       class Real
-        class << self
-          def basic_request(*args)
-            self.class_eval <<-EOS, __FILE__,__LINE__
-              def #{args[0]}(uri)
-                request(
-                  {
-                    :expects => #{args[1] || 200},
-                    :method  => '#{args[2] || 'GET'}',
-                    :headers => #{args[3] ? args[3].inspect : '{}'},
-                    :body => '#{args[4] ? args[4] : ''}',
-                    :parse => true,
-                    :uri     => uri
-                  }
-                )
-              end
-            EOS
-          end
-
-          def unauthenticated_basic_request(*args)
-            self.class_eval <<-EOS, __FILE__,__LINE__
-              def #{args[0]}(uri)
-                unauthenticated_request({
-                  :expects => #{args[1] || 200},
-                  :method  => '#{args[2] || 'GET'}',
-                  :headers => #{args[3] ? args[3].inspect : '{}'},
-                  :parse => true,
-                  :uri     => uri })
-              end
-            EOS
-          end
-        end
-
         attr_reader :version
 
-        def initialize(options = {})
-          require 'builder'
+        def self.basic_request(*args); end
 
-          @connections = {}
+        def initialize(options = {})
+          # force version
+          version = (options[:vcloud_api_version] || VERSION)
+
+          @connection = nil
           @connection_options = options[:connection_options] || {}
           @persistent = options[:persistent]
+          @vcloud_auth_token = nil
 
           @username  = options[:vcloud_username]
           @password  = options[:vcloud_password]
-          @host      = options[:vcloud_host]
+          @connection_options = options[:connection_options] || {}
+          @persistent = options[:persistent]  || false
           @base_path = options[:vcloud_base_path]   || Fog::Vcloud::Compute::BASE_PATH
-          @version   = options[:vcloud_version]     || Fog::Vcloud::Compute::DEFAULT_VERSION
-          @path      = options[:vcloud_path]        || "#{@base_path}/v#{@version}"
+          @version   = options[:vcloud_version]     || Fog::Vcloud::Compute::VERSION
           @port      = options[:vcloud_port]        || Fog::Vcloud::Compute::PORT
           @scheme    = options[:vcloud_scheme]      || Fog::Vcloud::Compute::SCHEME
-          @vdc_href  = options[:vcloud_default_vdc]
+          @host      = Fog::Vcloud::Compute::DEFAULT_HOST_URL
         end
 
         def reload
@@ -206,9 +190,6 @@ module Fog
 
         def default_vdc_href
           if @vdc_href.nil?
-            unless @login_results
-              do_login
-            end
             org = organizations.first
             vdc = get_organization(org.href).links.find { |item| item[:type] == 'application/vnd.vmware.vcloud.vdc+xml'}
             @vdc_href = vdc[:href]
@@ -216,72 +197,39 @@ module Fog
           @vdc_href
         end
 
-        # login handles the auth, but we just need the Set-Cookie
-        # header from that call.
+        # login handles the auth, but we just need the vchs-authorization header
         def do_login
-          @login_results = login
-          @cookie = @login_results.headers['Set-Cookie'] || @login_results.headers['set-cookie']
+          response = login
+          # If we got the token back we want to keep it for future requests
+          @vcloud_auth_token = response.headers["vchs-authorization"]
         end
 
-        def ensure_unparsed(uri)
-          if uri.is_a?(String)
-            uri
-          else
-            uri.to_s
-          end
-        end
-
-        def xmlns
-          if version == '1.0'
-            { "xmlns" => "http://www.vmware.com/vcloud/v1",
-              "xmlns:ovf" => "http://schemas.dmtf.org/ovf/envelope/1",
-              "xmlns:xsi" => "http://www.w3.org/2001/XMLSchema-instance",
-              "xmlns:xsd" => "http://www.w3.org/2001/XMLSchema" }
-          else
-            { 'xmlns' => "http://www.vmware.com/vcloud/v1.5",
-              "xmlns:ovf" => "http://schemas.dmtf.org/ovf/envelope/1",
-              "xmlns:xsi" => "http://www.w3.org/2001/XMLSchema-instance",
-              "xmlns:xsd" => "http://www.w3.org/2001/XMLSchema" }
-          end
-        end
+        def xmlns; end
 
         # If the cookie isn't set, do a get_organizations call to set it
         # and try the request.
         # If we get an Unauthorized error, we assume the token expired, re-auth and try again
         def request(params)
-          unless @cookie
-            do_login
-          end
+          puts "auth token is: #{@vcloud_auth_token}"
+          do_login if @vcloud_auth_token.nil?
+
           begin
             do_request(params)
           rescue Excon::Errors::Unauthorized
+            puts "The token has expired so generate a new one"
             do_login
             do_request(params)
           end
         end
 
-        def basic_request_params(uri,*args)
-          {
-            :expects => args[0] || 200,
-            :method  => args[1] || 'GET',
-            :headers => args[2] ? args[2].inspect : {},
-            :body => args[3] ? args[3] : '',
-            :parse => true,
-            :uri     => uri
-          }
-        end
-
-        def base_path_url
-          "#{@scheme}://#{@host}:#{@port}#{@base_path}"
+        def base_path_url(base_path = nil)
+          "#{@scheme}://#{@host}#{@base_path}"
         end
 
         private
-        def ensure_parsed(uri)
-          if uri.is_a?(String)
-            URI.parse(uri)
-          else
-            uri
-          end
+
+        def ensure_uri(uri)
+          uri.is_a?(String) ? URI.parse(URI.encode(uri.strip)) : uri
         end
 
         # Don't need to  set the cookie for these or retry them if the cookie timed out
@@ -290,7 +238,7 @@ module Fog
         end
 
         def base_url
-          "#{@scheme}://#{@host}:#{@port}#{@path}"
+          "#{@scheme}://#{@host}#{@path}"
         end
 
         # Use this to set the Authorization header for login
@@ -298,53 +246,66 @@ module Fog
           "Basic #{Base64.encode64("#{@username}:#{@password}").delete("\r\n")}"
         end
 
+        def oauth_header
+          "Bearer #{@vcloud_auth_token}"
+        end
+
+        # Please return json
+        def default_header_params
+          "application/json;version=#{VERSION};"
+        end
+
         # Actually do the request
         def do_request(params)
-          # Convert the uri to a URI if it's a string.
-          if params[:uri].is_a?(String)
-            params[:uri] = URI.parse(params[:uri])
+          @connection ||= Fog::Core::Connection.new("#{@scheme}://#{@host}:#{@port}", @persistent, @connection_options)
+
+          # Set headers to appropriate values
+          headers = {
+            'Content-Type' => default_header_params
+          }
+
+          headers.merge!(params[:headers])
+
+          if params[:path]
+            if params[:override_path] == true
+              path = params[:path]
+            else
+              path = "#{@base_path}/#{params[:path]}"
+            end
+          else
+            path = "#{@base_path}"
           end
-          host_url = "#{params[:uri].scheme}://#{params[:uri].host}#{params[:uri].port ? ":#{params[:uri].port}" : ''}"
 
-          # Hash connections on the host_url ... There's nothing to say we won't get URI's that go to
-          # different hosts.
-          @connections[host_url] ||= Fog::XML::Connection.new(host_url, @persistent, @connection_options)
-
-          # Set headers to an empty hash if none are set.
-          headers = params[:headers] || {}
-          headers['Accept'] = 'application/*+xml;version=1.5' if version == '1.5'
-
-          # Add our auth cookie to the headers
-          if @cookie
-            headers.merge!('Cookie' => @cookie)
+          # Include the oauth token in all subsequence requests
+          if @vcloud_auth_token
+            puts "Already authorized"
+            puts @vcloud_auth_token
+            headers['Authorization'] = oauth_header
           end
 
-          # Make the request
-          response = @connections[host_url].request({
+          puts "-" * 3
+          puts headers
+          puts path
+          puts "-" * 3
+
+          response = @connection.request({
             :body     => params[:body] || '',
             :expects  => params[:expects] || 200,
             :headers  => headers,
             :method   => params[:method] || 'GET',
-            :path     => params[:uri].path
+            :path     => path
           })
 
           # Parse the response body into a hash
-          unless response.body.empty?
-            if params[:parse]
-              document = Fog::ToHashDocument.new
-              parser = Nokogiri::XML::SAX::PushParser.new(document)
-              parser << response.body
-              parser.finish
-              response.body = document.body
-            end
-          end
-
+          response.body = RJSON.parse(response.body) unless response.body.empty?
           response
         end
       end
+
       def self.item_requests(*types)
-        types.each{|t| item_request(t) }
+        types.each {|t| item_request(t)}
       end
+
       def self.item_request(type)
         Fog::Vcloud::Compute::Real.class_eval <<-EOS, __FILE__,__LINE__
           def get_#{type}(uri)

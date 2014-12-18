@@ -3,18 +3,18 @@ module Fog
     class Compute
       class Real
         def login
-          headers = { 'Authorization' => authorization_header }
-          uri = if version == '1.0'
-            "#{base_url}/login"
-          else
-            "#{base_path_url}/sessions"
-          end
+          headers = {
+            'Accept' => default_header_params,
+            'Authorization' => authorization_header
+          }
+          puts "requesting auth token..."
+
           unauthenticated_request({
-            :expects  => 200,
+            :expects  => 201,
             :headers  => headers,
             :method   => 'POST',
             :parse    => true,
-            :uri      => uri
+            :path     => "iam/login"
           })
         end
       end
