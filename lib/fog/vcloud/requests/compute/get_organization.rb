@@ -2,9 +2,9 @@ module Fog
   module Compute
     class Vcloud
       class Real
-        def get_organizations
+        def get_organization(id)
           request({
-            :path => "org"
+            :path => "org/#{id}"
           })
         end
       end

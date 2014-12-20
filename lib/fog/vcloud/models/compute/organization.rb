@@ -1,7 +1,9 @@
+require 'fog/core/model'
+
 module Fog
-  module Vcloud
-    class Compute
-      class Organization < Fog::Vcloud::Model
+  module Compute
+    class Vcloud
+      class Organization < Model
         identity :href, :aliases => :Href
         attribute :links, :aliases => :Link, :type => :array
         ignore_attributes :xmlns, :xmlns_i, :xmlns_xsi, :xmlns_xsd
@@ -12,28 +14,23 @@ module Fog
         attribute :full_name, :aliases => :FullName
 
         def networks
-          @networks ||= Fog::Vcloud::Compute::Networks.
-            new( :service => service,
-                 :href => href )
+          requires :id
+          service.networks(:organization => self)
         end
 
         def tasks
-          load_unless_loaded!
-          @tasks ||= Fog::Vcloud::Compute::Tasks.
-            new( :service => service,
-                 :href => other_links.find{|l| l[:type] == 'application/vnd.vmware.vcloud.tasksList+xml'}[:href] )
+          requires :id
+          service.tasks(:organization => self)
         end
 
         def vdcs
-          @vdcs ||= Fog::Vcloud::Compute::Vdcs.
-            new( :service => service,
-                 :href => href )
+          requires :id
+          service.vdcs(:organization => self)
         end
 
         def catalogs
-          @catalogs ||= Fog::Vcloud::Compute::Catalogs.
-            new( :service => service,
-                 :href => href )
+          requires :id
+          service.catalogs(:organization => self)
         end
       end
     end

@@ -1,7 +1,9 @@
+require 'fog/core/model'
+
 module Fog
-  module Vcloud
-    class Compute
-      class Catalog < Fog::Vcloud::Model
+  module Compute
+    class Vcloud
+      class Catalog < Model
         identity :href, :aliases => :Href
         attribute :links, :aliases => :Link, :type => :array
         ignore_attributes :xmlns, :xmlns_i, :xmlns_xsi, :xmlns_xsd

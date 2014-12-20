@@ -1,10 +1,11 @@
+require 'fog/core/collection'
+require 'fog/vcloud/models/compute/catalog_item'
+
 module Fog
   module Vcloud
     class Compute
-      class CatalogItems < Fog::Vcloud::Collection
-        undef_method :create
-
-        model Fog::Vcloud::Compute::CatalogItem
+      class CatalogItems < Collection
+        model Fog::Compute::Vcloud::CatalogItem
 
         attribute :href, :aliases => :Href
 

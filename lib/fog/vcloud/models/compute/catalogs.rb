@@ -1,17 +1,17 @@
+require 'fog/core/collection'
 require 'fog/vcloud/models/compute/catalog'
 
 module Fog
-  module Vcloud
-    class Compute
-      class Catalogs < Fog::Vcloud::Collection
-        model Fog::Vcloud::Compute::Catalog
+  module Compute
+    class Vcloud
+      class Catalogs < Collection
+        model Fog::Compute::Vcloud::Catalog
 
         attribute :organization_uri
 
         def all
           org_uri = self.organization_uri || service.default_organization_uri
           data = service.get_organization(org_uri).links.select { |link| link[:type] == "application/vnd.vmware.vcloud.catalog+xml" }
-          load(data)
         end
 
         def get(uri)

@@ -1,38 +1,4 @@
 require 'fog/vcloud/core'
-require 'json'
-
-# Alias json module to avoid name conflicts
-RJSON = JSON
-
-module Fog
-  module Vcloud
-    class Collection < Fog::Collection
-      def load(objects)
-        objects = [ objects ] if objects.is_a?(Hash)
-        super
-      end
-
-      def check_href!(opts = {})
-        self.href = service.default_vdc_href unless href
-        unless href
-          if opts.is_a?(String)
-            t = Hash.new
-            t[:parent] = opts
-            opts = t
-          end
-          msg = ":href missing, call with a :href pointing to #{if opts[:message]
-                  opts[:message]
-                elsif opts[:parent]
-                  "the #{opts[:parent]} whos #{self.class.to_s.split('::').last.downcase} you want to enumerate"
-                else
-                  "the resource"
-                end}"
-          raise Fog::Errors::Error.new(msg)
-        end
-      end
-    end
-  end
-end
 
 module Fog
   module Vcloud
@@ -70,9 +36,9 @@ module Fog
 end
 
 module Fog
-  module Vcloud
-    class Compute < Fog::Service
-      BASE_PATH   = '/api'
+  module Compute
+    class Vcloud < Fog::Service
+      BASE_PATH   = 'api/compute/api'
       VERSION = '5.7'
       DEFAULT_HOST_URL = "beta2014.vchs.vmware.com"
       PORT   = 443
@@ -80,7 +46,7 @@ module Fog
 
       attr_writer :default_vdc_uri
 
-      requires   :vcloud_username, :vcloud_password
+      requires   :vcloud_username, :vcloud_password, :vcloud_org, :vcloud_host
       recognizes :vcloud_port, :vcloud_scheme, :vcloud_path, :vcloud_version, :vcloud_base_path
       recognizes :provider # remove post deprecation
 
@@ -89,64 +55,63 @@ module Fog
       collection :catalogs
       model :catalog_item
       model :catalog_items
-      model :ip
-      collection :ips
-      model :network
-      collection :networks
-      model :server
-      collection :servers
-      model :task
-      collection :tasks
+      # model :ip
+      #collection :ips
+      #model :network
+      #collection :networks
+      #model :server
+      #collection :servers
+      #model :task
+      #collection :tasks
       model :vapp
       collection :vapps
       model :vdc
       collection :vdcs
       model :organization
       collection :organizations
-      model :tag
-      collection :tags
+      #model :tag
+      #collection :tags
 
       request_path 'fog/vcloud/requests/compute'
-      request :clone_vapp
-      request :configure_network
-      request :configure_network_ip
-      request :configure_vapp
-      request :configure_vm_memory
-      request :configure_vm_cpus
-      request :configure_org_network
-      request :configure_vm_name_description
-      request :configure_vm_disks
-      request :configure_vm_password
-      request :configure_vm_network
-      request :delete_vapp
-      request :get_catalog_item
-      request :get_customization_options
-      request :get_network_ip
-      request :get_network_ips
-      request :get_network_extensions
-      request :get_task_list
-      request :get_vapp_template
-      request :get_vm_disks
-      request :get_vm_memory
-      request :instantiate_vapp_template
+      #request :clone_vapp
+      #request :configure_network
+      #request :configure_network_ip
+      #request :configure_vapp
+      #request :configure_vm_memory
+      #request :configure_vm_cpus
+      #request :configure_org_network
+      #request :configure_vm_name_description
+      #request :configure_vm_disks
+      #request :configure_vm_password
+      #request :configure_vm_network
+      #request :get_customization_options
+      #request :get_network_ip
+      #request :get_network_ips
+      #request :get_network_extensions
+      #request :get_task_list
+      #request :get_vapp_template
+      #request :get_vm_disks
+      #request :get_vm_memory
+      #request :configure_vm_customization_script
+
+      # for me to do
+      #request :instantiate_vapp_template
       request :login
-      request :power_off
-      request :power_on
-      request :power_reset
-      request :power_shutdown
-      request :undeploy
-      request :get_metadata
-      request :delete_metadata
-      request :configure_metadata
-      request :configure_vm_customization_script
+      #request :power_off
+      #request :power_on
+      #request :power_reset
+      #request :power_shutdown
+      #request :undeploy
+      #request :get_metadata
+      #request :delete_metadata
+      #request :configure_metadata
+      #request :delete_vapp
+      #request :get_catalog_item
+      # request :get_catalogs
 
-      # Added for the new API
-      model :plan
-      collection :plans
-
-      request :get_plans
-      request :get_instances
+      # All my additions
       request :get_organizations
+      request :get_organization
 
       class Mock
         def initialize(options={})
@@ -160,32 +125,42 @@ module Fog
         def self.basic_request(*args); end
 
         def initialize(options = {})
-          # force version
           version = (options[:vcloud_api_version] || VERSION)
 
           @connection = nil
           @connection_options = options[:connection_options] || {}
-          @persistent = options[:persistent]
+          @persistent = options[:persistent] || false
           @vcloud_auth_token = nil
 
-          @username  = options[:vcloud_username]
-          @password  = options[:vcloud_password]
-          @connection_options = options[:connection_options] || {}
-          @persistent = options[:persistent]  || false
-          @base_path = options[:vcloud_base_path]   || Fog::Vcloud::Compute::BASE_PATH
-          @version   = options[:vcloud_version]     || Fog::Vcloud::Compute::VERSION
-          @port      = options[:vcloud_port]        || Fog::Vcloud::Compute::PORT
-          @scheme    = options[:vcloud_scheme]      || Fog::Vcloud::Compute::SCHEME
-          @host      = Fog::Vcloud::Compute::DEFAULT_HOST_URL
+          @username   = options[:vcloud_username]
+          @password   = options[:vcloud_password]
+          @org        = options[:vcloud_org]
+
+          @raw_host   = options[:vcloud_host]
+          @host       = slice_from_end(options[:vcloud_host], 4)
+
+          @base_path  = options[:vcloud_base_path]   || BASE_PATH
+          @version    = options[:vcloud_version]     || VERSION
+          @port       = options[:vcloud_port]        || PORT
+          @scheme     = options[:vcloud_scheme]      || SCHEME
+          @default_host = DEFAULT_HOST_URL
+        end
+
+        def slice_from_end(str, amount = 1)
+          amount = amount * -1
+          str.split("/")[0...amount].join("/") + "/"
+        end
+
+        def add_id_from_href!(data={})
+          data[:id] = data[:href].split('/').last
         end
 
         def reload
-          @connections.each_value { |k,v| v.reset if v }
+          @connections.reset
         end
 
         def default_organization_uri
-          @default_organization_uri ||= organizations.first.href
-          @default_organization_uri
+          @default_organization_uri ||= connection.organizations.first.href
         end
 
         def default_vdc_href
@@ -194,17 +169,17 @@ module Fog
             vdc = get_organization(org.href).links.find { |item| item[:type] == 'application/vnd.vmware.vcloud.vdc+xml'}
             @vdc_href = vdc[:href]
           end
+
           @vdc_href
         end
 
         # login handles the auth, but we just need the vchs-authorization header
         def do_login
+          puts "Trying to log in..."
           response = login
           # If we got the token back we want to keep it for future requests
-          @vcloud_auth_token = response.headers["vchs-authorization"]
+          @vcloud_auth_token = response.headers["x-vcloud-authorization"]
         end
-
-        def xmlns; end
 
         # If the cookie isn't set, do a get_organizations call to set it
         # and try the request.
@@ -243,85 +218,66 @@ module Fog
 
         # Use this to set the Authorization header for login
         def authorization_header
-          "Basic #{Base64.encode64("#{@username}:#{@password}").delete("\r\n")}"
+          "Basic #{Base64.encode64("#{@username}@#{@org}:#{@password}").delete("\r\n")}"
         end
 
         def oauth_header
           "Bearer #{@vcloud_auth_token}"
         end
 
-        # Please return json
+        # TODO Please return json (not available with this api yet)
         def default_header_params
-          "application/json;version=#{VERSION};"
+          # "application/json;version=#{VERSION};"
+          "application/*+xml;version=#{VERSION};"
+        end
+
+        def get_path(params)
+          return nil if params[:path].nil?
+
+          if params[:override_path] == true
+            path = params[:path]
+          else
+            path = "#{@base_path}/#{params[:path]}"
+          end
+
+          path
         end
 
         # Actually do the request
         def do_request(params)
-          @connection ||= Fog::Core::Connection.new("#{@scheme}://#{@host}:#{@port}", @persistent, @connection_options)
-
-          # Set headers to appropriate values
+          @connection ||= Fog::XML::Connection.new(@host, @persistent, @connection_options)
           headers = {
-            'Content-Type' => default_header_params
+            'Accept' => "application/*+xml;version=#{VERSION}",
+            'x-vcloud-authorization' => @vcloud_auth_token
           }
 
-          headers.merge!(params[:headers])
+          headers.merge!(params[:headers]) if params[:headers]
+          path = get_path params
 
-          if params[:path]
-            if params[:override_path] == true
-              path = params[:path]
-            else
-              path = "#{@base_path}/#{params[:path]}"
-            end
-          else
-            path = "#{@base_path}"
-          end
+          binding.pry
 
-          # Include the oauth token in all subsequence requests
-          if @vcloud_auth_token
-            puts "Already authorized"
-            puts @vcloud_auth_token
-            headers['Authorization'] = oauth_header
-          end
-
-          puts "-" * 3
-          puts headers
-          puts path
-          puts "-" * 3
-
-          response = @connection.request({
+          request_object = {
             :body     => params[:body] || '',
             :expects  => params[:expects] || 200,
             :headers  => headers,
             :method   => params[:method] || 'GET',
-            :path     => path
-          })
+            :path     => path || ''
+          }
+
+          response = @connection.request(request_object)
 
           # Parse the response body into a hash
-          response.body = RJSON.parse(response.body) unless response.body.empty?
+          unless response.body.empty?
+            document = Fog::ToHashDocument.new
+            parser = Nokogiri::XML::SAX::PushParser.new(document)
+            parser << response.body
+            parser.finish
+            response.body = document.body
+          end
+
           response
         end
       end
-
-      def self.item_requests(*types)
-        types.each {|t| item_request(t)}
-      end
-
-      def self.item_request(type)
-        Fog::Vcloud::Compute::Real.class_eval <<-EOS, __FILE__,__LINE__
-          def get_#{type}(uri)
-            Fog::Vcloud::Compute::#{type.to_s.capitalize}.new(
-              self.request(basic_request_params(uri)).body.merge(
-                :service => self,
-                :collection => Fog::Vcloud::Compute::#{type.to_s.capitalize}s.new(
-                  :service => self
-                )
-              )
-            )
-          end
-        EOS
-      end
-
-      item_requests :organization, :vdc, :network, :vapp, :server, :catalog, :task
     end
   end
 end

@@ -1,3 +1,4 @@
+require 'fog/core/collection'
 require 'fog/vcloud/models/compute/vdc'
 
 module Fog
@@ -6,9 +7,14 @@ module Fog
       class Vdcs < Collection
         model Fog::Vcloud::Compute::Vdc
 
-        undef_method :create
+        attribute :organization
 
-        attribute :href
+        def item_list
+          data = service.get_organization(organization.id).body
+          items = data[:Link].select { |link| link[:type] == "application/vnd.vmware.vcloud.vdc+xml" }
+
+          items
+        end
 
         def all
           data = service.get_organization(org_uri).links.select { |link| link[:type] == "application/vnd.vmware.vcloud.vdc+xml" }

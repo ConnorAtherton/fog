@@ -1,23 +1,23 @@
+require 'fog/core/collection'
 require 'fog/vcloud/models/compute/organization'
 
 module Fog
-  module Vcloud
-    class Compute
+  module Compute
+    class Vcloud
       class Organizations < Collection
-        model Fog::Vcloud::Compute::Organization
-
-        undef_method :create
+        model Fog::Compute::Vcloud::Organization
 
         def all
-          raw_orgs = service.get_organizations
-          data = raw_orgs.body[:Org]
-          load(data)
+          orgs = service.get_organizations
+          orgs = orgs.body[:Org]
+          load(orgs)
         end
 
-        def get(uri)
-          service.get_organization(uri)
-        rescue Fog::Errors::NotFound
-          nil
+        def get_by_id(id)
+          org = service.get_organization(id).data[:body]
+          service.add_id_from_href!(org)
+          binding.pry
+          new(org)
         end
       end
     end

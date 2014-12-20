@@ -1,20 +1,18 @@
 module Fog
-  module Vcloud
-    class Compute
+  module Compute
+    class Vcloud
       class Real
         def login
           headers = {
             'Accept' => default_header_params,
-            'Authorization' => authorization_header
+            'Authorization' => authorization_header,
+            'Content-Type'  => default_header_params
           }
-          puts "requesting auth token..."
 
           unauthenticated_request({
-            :expects  => 201,
             :headers  => headers,
             :method   => 'POST',
-            :parse    => true,
-            :path     => "iam/login"
+            :path     => 'sessions' # @login_path
           })
         end
       end

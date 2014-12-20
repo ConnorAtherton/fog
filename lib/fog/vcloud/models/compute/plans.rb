@@ -9,6 +9,7 @@ module Fog
         attribute :href, :aliases => :Href
 
         def all
+          puts "gettimng plans"
           service.get_plans.data[:body]
         end
 
