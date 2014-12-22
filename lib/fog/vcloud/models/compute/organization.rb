@@ -5,11 +5,12 @@ module Fog
     class Vcloud
       class Organization < Model
         identity :href, :aliases => :Href
-        attribute :links, :aliases => :Link, :type => :array
         ignore_attributes :xmlns, :xmlns_i, :xmlns_xsi, :xmlns_xsd
 
+        attribute :id
         attribute :name
         attribute :description, :aliases => :Description
+        attribute :links, :aliases => :Link, :type => :array
         attribute :type
         attribute :full_name, :aliases => :FullName
 

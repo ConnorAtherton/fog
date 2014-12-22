@@ -16,7 +16,6 @@ module Fog
         def get_by_id(id)
           org = service.get_organization(id).data[:body]
           service.add_id_from_href!(org)
-          binding.pry
           new(org)
         end
       end

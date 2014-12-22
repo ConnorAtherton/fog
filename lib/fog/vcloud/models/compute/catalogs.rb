@@ -7,17 +7,17 @@ module Fog
       class Catalogs < Collection
         model Fog::Compute::Vcloud::Catalog
 
-        attribute :organization_uri
+        attribute :organization
 
         def all
-          org_uri = self.organization_uri || service.default_organization_uri
-          data = service.get_organization(org_uri).links.select { |link| link[:type] == "application/vnd.vmware.vcloud.catalog+xml" }
+          catalogs = organization.links.select { |link| link[:type] == "application/vnd.vmware.vcloud.catalog+xml" }
+          catalogs = catalogs.map {|c| service.add_id_from_href!(c) }
+          binding.pry
+          load(catalogs)
         end
 
-        def get(uri)
-          service.get_catalog(uri)
-        rescue Fog::Errors::NotFound
-          nil
+        def get_by_id(id)
+          service.get_catalog(id)
         end
 
         def item_by_name(name)

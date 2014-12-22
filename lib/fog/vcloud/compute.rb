@@ -153,6 +153,7 @@ module Fog
 
         def add_id_from_href!(data={})
           data[:id] = data[:href].split('/').last
+          data
         end
 
         def reload
@@ -254,7 +255,7 @@ module Fog
           headers.merge!(params[:headers]) if params[:headers]
           path = get_path params
 
-          binding.pry
+          # binding.pry
 
           request_object = {
             :body     => params[:body] || '',
