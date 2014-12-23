@@ -54,7 +54,7 @@ module Fog
       model :catalog
       collection :catalogs
       model :catalog_item
-      model :catalog_items
+      collection :catalog_items
       # model :ip
       #collection :ips
       #model :network
@@ -65,6 +65,8 @@ module Fog
       #collection :tasks
       model :vapp
       collection :vapps
+      model :vm
+      collection :vms
       model :vdc
       collection :vdcs
       model :organization
@@ -95,7 +97,7 @@ module Fog
       #request :configure_vm_customization_script
 
       # for me to do
-      #request :instantiate_vapp_template
+      request :instantiate_vapp_template
       request :login
       #request :power_off
       #request :power_on
@@ -106,12 +108,14 @@ module Fog
       #request :delete_metadata
       #request :configure_metadata
       #request :delete_vapp
-      #request :get_catalog_item
-      # request :get_catalogs
+      request :get_vapp
+      request :get_catalog_item
+      request :get_catalog
 
       # All my additions
       request :get_organizations
       request :get_organization
+      request :get_vdc
 
       class Mock
         def initialize(options={})
@@ -158,6 +162,10 @@ module Fog
 
         def reload
           @connections.reset
+        end
+
+        def default_full_host
+          @host + BASE_PATH + "/"
         end
 
         def default_organization_uri

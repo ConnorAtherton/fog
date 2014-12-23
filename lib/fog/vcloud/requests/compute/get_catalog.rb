@@ -1,8 +1,12 @@
 module Fog
-  module Vcloud
-    class Compute
+  module Compute
+    class Vcloud
       class Real
-        basic_request :get_catalog
+        def get_catalog(id)
+          request({
+            path: "catalog/#{id}"
+          })
+        end
       end
     end
   end

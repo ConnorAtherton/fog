@@ -1,8 +1,12 @@
 module Fog
-  module Vcloud
-    class Compute
+  module Compute
+    class Vcloud
       class Real
-        basic_request :get_vapp
+        def get_vapp(id)
+          request({
+            path: "vApp/#{id}"
+          })
+        end
       end
     end
   end

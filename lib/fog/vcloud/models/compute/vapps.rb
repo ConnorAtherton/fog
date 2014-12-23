@@ -1,23 +1,28 @@
+require 'fog/core/collection'
 require 'fog/vcloud/models/compute/vapp'
 
 module Fog
-  module Vcloud
-    class Compute
+  module Compute
+    class Vcloud
       class Vapps < Collection
-        model Fog::Vcloud::Compute::Vapp
-
-        undef_method :create
+        model Fog::Compute::Vcloud::Vapp
 
         attribute :href
+        attribute :vdc
 
         def all
-          load([service.get_vdc(service.default_vdc_href).resource_entities].flatten.select { |re| re[:type] == "application/vnd.vmware.vcloud.vApp+xml" })
+          entities = vdc.resource_entities
+          return [] if entities == ""
+          return new(service.add_id_from_href!(entities)) if entities.is_a?(Hash)
+
+          vapps = vdc.resource_entities.select { |re| re[:type] == "application/vnd.vmware.vcloud.vApp+xml" }
+          vapps.each {|v| service.add_id_from_href!(v) }
+          load(vapps)
         end
 
-        def get(uri)
-          service.get_vapp(uri)
-        rescue Fog::Errors::NotFound
-          nil
+        def get_by_id(id)
+          data = service.get_vapp(id).data[:body]
+          new(service.add_id_from_href!(data))
         end
       end
     end

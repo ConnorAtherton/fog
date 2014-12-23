@@ -11,13 +11,13 @@ module Fog
 
         def all
           catalogs = organization.links.select { |link| link[:type] == "application/vnd.vmware.vcloud.catalog+xml" }
-          catalogs = catalogs.map {|c| service.add_id_from_href!(c) }
-          binding.pry
+          catalogs.each {|c| service.add_id_from_href!(c) }
           load(catalogs)
         end
 
         def get_by_id(id)
-          service.get_catalog(id)
+          catalog = service.get_catalog(id)
+          new(catalog)
         end
 
         def item_by_name(name)

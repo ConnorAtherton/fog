@@ -2,32 +2,22 @@ require 'fog/core/collection'
 require 'fog/vcloud/models/compute/catalog_item'
 
 module Fog
-  module Vcloud
-    class Compute
+  module Compute
+    class Vcloud
       class CatalogItems < Collection
         model Fog::Compute::Vcloud::CatalogItem
 
-        attribute :href, :aliases => :Href
+        attribute :cat
 
         def all
-          catalog_item_info = service.get_catalog_item(self.href)
-          items = service.get_catalog_item(self.href).body[:CatalogItems]
-          if items.size > 0
-            data = items[:CatalogItem]
-            load(data)
-          end
+          catalog = service.get_catalog(cat.id)
+          items = catalog.body[:CatalogItems]
+          load(items[:CatalogItem]) if items.size > 0
         end
 
-        def get(uri)
-          if data = service.get_catalog_item(uri)
-            new(data.body)
-          end
-        rescue Fog::Errors::NotFound
-          nil
-        end
-
-        def organization_uri
-          @organization_uri ||= service.default_organization_uri
+        def get_by_id(id)
+          data = service.get_catalog_item(id)
+          data.body ? new(data.body) : nil
         end
       end
     end

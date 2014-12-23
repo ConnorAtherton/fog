@@ -1,8 +1,12 @@
 module Fog
-  module Vcloud
-    class Compute
+  module Compute
+    class Vcloud
       class Real
-        basic_request :get_vdc
+        def get_vdc(id)
+          res = request({
+            path: "vdc/#{id}"
+          })
+        end
       end
     end
   end

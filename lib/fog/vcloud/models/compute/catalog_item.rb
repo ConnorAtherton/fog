@@ -5,14 +5,18 @@ module Fog
     class Vcloud
       class CatalogItem < Model
         identity :href, :aliases => :Href
-        attribute :links, :aliases => :Link, :type => :array
         ignore_attributes :xmlns, :xmlns_i, :xmlns_xsi, :xmlns_xsd
 
         attribute :type
+        attribute :id
         attribute :name
-        attribute :entity, :aliases => :Entity
-        attribute :link, :aliases => :Link
-        attribute :property, :aliases => :Property
+        attribute :description, :aliases => :Description
+        attribute :vapp_template_id
+
+        def instantiate(vapp_name, options = {})
+          response = service.instantiate_vapp_template(vapp_name, id, options)
+          binding.pry
+        end
 
         def customization_options
           load_unless_loaded!

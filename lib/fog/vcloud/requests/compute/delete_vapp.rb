@@ -2,7 +2,12 @@ module Fog
   module Vcloud
     class Compute
       class Real
-        basic_request :delete_vapp, 202, "DELETE"
+        def delete_vapp
+          request({
+            path: "vApp/#{id}",
+            method: "DELETE"
+          })
+        end
       end
     end
   end
