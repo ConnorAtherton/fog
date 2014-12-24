@@ -1,16 +1,15 @@
+require 'fog/core/collection'
 require 'fog/vcloud/models/compute/tag'
 
 module Fog
-  module Vcloud
-    class Compute
-      class Tags < Fog::Vcloud::Collection
-        undef_method :create
-
-        model Fog::Vcloud::Compute::Tag
+  module Compute
+    class Vcloud
+      class Tags < Collection
+        model Fog::Compute::Vcloud::Tag
 
         attribute :href, :aliases => :Href
 
-        def all
+        def item_list
           metadata = service.get_metadata(self.href)
           load(metadata.body[:MetadataEntry]) if metadata.body[:MetadataEntry]
         end

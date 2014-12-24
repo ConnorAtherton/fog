@@ -18,97 +18,61 @@ module Fog
         attribute :memory, :type => :integer
         attribute :hard_disks, :aliases => :disks
 
-        def reload
-          # when collection.vapp is nil, it means it's fatherless,
-          # vms from different vapps are loaded in the same collection.
-          # This situation comes from a "query" result
-          collection.vapp.nil? ? reload_single_vm : super
+        def ready?
+          reload_status # always ensure we have the correct status
+          status != '0'
         end
 
-        def reload_single_vm
-          return unless data = begin
-            collection.get_single_vm(identity)
-          rescue Excon::Errors::SocketError
-            nil
-          end
-          # these two attributes don't exists in the get_single_vm response
-          # that's why i use the old attributes
-          data.attributes[:vapp_id] = attributes[:vapp_id]
-          data.attributes[:vapp_name] = attributes[:vapp_name]
-          new_attributes = data.attributes
-          merge_attributes(new_attributes)
-          self
+        def undeploy(action='powerOff')
+          response = service.post_undeploy_vapp(id, :UndeployPowerAction => action)
+          service.process_task(response.body)
         end
 
-        # Power off the VM.
+        # Power off all VMs in the vApp.
         def power_off
           requires :id
-          begin
-            response = service.post_power_off_vapp(id)
-          rescue Fog::Compute::VcloudDirector::BadRequest => ex
-            Fog::Logger.debug(ex.message)
-            return false
-          end
+          response = service.post_power_off_vapp(id)
           service.process_task(response.body)
         end
 
-        # Power on the VM.
+        # Power on all VMs in the vApp.
         def power_on
           requires :id
-          begin
-            response = service.post_power_on_vapp(id)
-          rescue Fog::Compute::VcloudDirector::BadRequest => ex
-            Fog::Logger.debug(ex.message)
-            return false
-          end
+          response = service.post_power_on_vapp(id)
           service.process_task(response.body)
         end
 
-        # Reboot the VM.
+        # Reboot all VMs in the vApp.
         def reboot
           requires :id
-          begin
-            response = service.post_reboot_vapp(id)
-          rescue Fog::Compute::VcloudDirector::BadRequest => ex
-            Fog::Logger.debug(ex.message)
-            return false
-          end
+          response = service.post_reboot_vapp(id)
           service.process_task(response.body)
         end
 
-        # Reset the VM.
+        # Reset all VMs in the vApp.
         def reset
           requires :id
-          begin
-            response = service.post_reset_vapp(id)
-          rescue Fog::Compute::VcloudDirector::BadRequest => ex
-            Fog::Logger.debug(ex.message)
-            return false
-          end
+          response = service.post_reset_vapp(id)
           service.process_task(response.body)
         end
 
-        # Shut down the VM.
+        # Shut down all VMs in the vApp.
         def shutdown
           requires :id
-          begin
-            response = service.post_shutdown_vapp(id)
-          rescue Fog::Compute::VcloudDirector::BadRequest => ex
-            Fog::Logger.debug(ex.message)
-            return false
-          end
+          response = service.post_shutdown_vapp(id)
           service.process_task(response.body)
         end
 
-        # Suspend the VM.
+        # Suspend all VMs in the vApp.
         def suspend
           requires :id
-          begin
-            response = service.post_suspend_vapp(id)
-          rescue Fog::Compute::VcloudDirector::BadRequest => ex
-            Fog::Logger.debug(ex.message)
-            return false
-          end
+          response = service.post_suspend_vapp(id)
+          service.process_task(response.body)
+        end
+
+        def destroy
+          requires :id
+          response = service.delete_vapp(id)
           service.process_task(response.body)
         end
 
@@ -123,36 +87,37 @@ module Fog
           service.vm_customizations.new(data)
         end
 
-        def network
-          requires :id
-          data = service.get_vm_network(id).body
-          service.vm_networks.new(data)
-        end
+        # todo
+        # def network
+        #   requires :id
+        #   data = service.get_vm_network(id).body
+        #   service.vm_networks.new(data)
+        # end
 
-        def disks
-          requires :id
-          service.disks(:vm => self)
-        end
+        # def disks
+        #   requires :id
+        #   service.disks(:vm => self)
+        # end
 
-        def memory=(new_memory)
-          has_changed = ( memory != new_memory.to_i )
-          not_first_set = !memory.nil?
-          attributes[:memory] = new_memory.to_i
-          if not_first_set && has_changed
-            response = service.put_memory(id, memory)
-            service.process_task(response.body)
-          end
-        end
+        # def memory=(new_memory)
+        #   has_changed = ( memory != new_memory.to_i )
+        #   not_first_set = !memory.nil?
+        #   attributes[:memory] = new_memory.to_i
+        #   if not_first_set && has_changed
+        #     response = service.put_memory(id, memory)
+        #     service.process_task(response.body)
+        #   end
+        # end
 
-        def cpu=(new_cpu)
-          has_changed = ( cpu != new_cpu.to_i )
-          not_first_set = !cpu.nil?
-          attributes[:cpu] = new_cpu.to_i
-          if not_first_set && has_changed
-            response = service.put_cpu(id, cpu)
-            service.process_task(response.body)
-          end
-        end
+        # def cpu=(new_cpu)
+        #   has_changed = ( cpu != new_cpu.to_i )
+        #   not_first_set = !cpu.nil?
+        #   attributes[:cpu] = new_cpu.to_i
+        #   if not_first_set && has_changed
+        #     response = service.put_cpu(id, cpu)
+        #     service.process_task(response.body)
+        #   end
+        # end
 
         def ready?
           reload

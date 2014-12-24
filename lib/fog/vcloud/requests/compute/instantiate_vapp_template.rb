@@ -6,6 +6,7 @@ module Fog
           params  = populate_uris(options.merge(:vapp_name => vapp_name, :template_id => template_id))
           data    = generate_instantiate_vapp_template_request(params)
           headers = {
+           'Accept' => "application/vnd.vmware.vcloud.vApp+xml",
            'Content-Type' => 'application/vnd.vmware.vcloud.instantiateVAppTemplateParams+xml'
           }
           binding.pry
@@ -41,28 +42,69 @@ module Fog
         end
 
         def generate_instantiate_vapp_template_request(options)
-          xml = Builder::XmlMarkup.new
-          xml.InstantiateVAppTemplateParams(xmlns.merge!(:name => options[:vapp_name], :"xml:lang" => "en", :"power_on" => true, :"deploy" => true)) {
-            xml.Description(options[:description])
-            xml.InstantiationParams {
-              if options[:network_uri]
-                # TODO - implement properly
-                xml.NetworkConfigSection {
-                  xml.tag!("ovf:Info"){ "Configuration parameters for logical networks" }
-                  xml.NetworkConfig("networkName" => options[:network_name]) {
-                    # xml.NetworkAssociation( :href => options[:network_uri] )
-                    xml.Configuration {
-                      xml.ParentNetwork("name" => options[:network_name], "href" => options[:network_uri])
-                      xml.FenceMode("bridged")
+          attrs = {
+            'xmlns' => 'http://www.vmware.com/vcloud/v1.5',
+            'xmlns:ovf' => 'http://schemas.dmtf.org/ovf/envelope/1',
+            :name => vapp_name
+          }
+          attrs[:deploy] = options[:deploy] if options.key?(:deploy)
+          attrs[:powerOn] = options[:powerOn] if options.key?(:powerOn)
+
+          body = Nokogiri::XML::Builder.new do
+            InstantiateVAppTemplateParams(attrs) {
+              if options.key?(:Description)
+                Description options[:Description]
+              end
+              if instantiation_params = options[:InstantiationParams]
+                InstantiationParams {
+                  if section = instantiation_params[:LeaseSettingsSection]
+                    LeaseSettingsSection {
+                      self['ovf'].Info 'Lease settings section'
+                      if section.key?(:DeploymentLeaseInSeconds)
+                        DeploymentLeaseInSeconds section[:DeploymentLeaseInSeconds]
+                      end
+                      if section.key?(:StorageLeaseInSeconds)
+                        StorageLeaseInSeconds section[:StorageLeaseInSeconds]
+                      end
+                      if section.key?(:DeploymentLeaseExpiration)
+                        DeploymentLeaseExpiration section[:DeploymentLeaseExpiration].strftime('%Y-%m-%dT%H:%M:%S%z')
+                      end
+                      if section.key?(:StorageLeaseExpiration)
+                        StorageLeaseExpiration section[:StorageLeaseExpiration].strftime('%Y-%m-%dT%H:%M:%S%z')
+                      end
                     }
-                  }
+                  end
+                  if section = instantiation_params[:NetworkConfigSection]
+                    NetworkConfigSection {
+                      self['ovf'].Info 'Configuration parameters for logical networks'
+                      if network_configs = section[:NetworkConfig]
+                        network_configs = [network_configs] if network_configs.is_a?(Hash)
+                        network_configs.each do |network_config|
+                          NetworkConfig(:networkName => network_config[:networkName]) {
+                            if configuration = network_config[:Configuration]
+                              Configuration {
+                                ParentNetwork(configuration[:ParentNetwork])
+                                FenceMode configuration[:FenceMode]
+                              }
+                            end
+                          }
+                        end
+                      end
+                    }
+                  end
                 }
               end
+              Source(:href => "#{end_point}vAppTemplate/#{vapp_template_id}")
+              if options.key?(:IsSourceDelete)
+                IsSourceDelete options[:IsSourceDelete]
+              end
+              if options.key?(:AllEULAsAccepted)
+                AllEULAsAccepted options[:AllEULAsAccepted]
+              end
             }
-            # The template
-            xml.Source(:href => options[:template_uri])
-            xml.AllEULAsAccepted("true")
-          }
+          end.to_xml
+
+          binding.pry
         end
 
         def vdc_end_point(vdc_id = nil)

@@ -1,50 +1,22 @@
 require 'fog/vcloud/core'
 
 module Fog
-  module Vcloud
-    class Model < Fog::Model
-      attr_accessor :loaded
-      alias_method :loaded?, :loaded
-
-      def reload
-        instance = super
-        @loaded = true
-        instance
-      end
-
-      def load_unless_loaded!
-        unless @loaded
-          reload
-        end
-      end
-
-      def link_up
-        load_unless_loaded!
-        self.links.find{|l| l[:rel] == 'up' }
-      end
-
-      def self.has_up(item)
-        class_eval <<-EOS, __FILE__,__LINE__
-          def #{item}
-            load_unless_loaded!
-            service.get_#{item}(link_up[:href])
-          end
-        EOS
-      end
-    end
-  end
-end
-
-module Fog
   module Compute
     class Vcloud < Fog::Service
       BASE_PATH   = 'api/compute/api'
       VERSION = '5.7'
+      # old version, leaving it here for testing
       DEFAULT_HOST_URL = "beta2014.vchs.vmware.com"
       PORT   = 443
       SCHEME = 'https'
 
-      attr_writer :default_vdc_uri
+      # class BadRequest        < Fog::Vcloud::Errors::BadRequest; end
+      # class Unauthorized      < Fog::Vcloud::Errors::Unauthorized; end
+      # class Forbidden         < Fog::Vcloud::Errors::Forbidden; end
+      # class Conflict          < Fog::Vcloud::Errors::Conflict; end
+      # class MalformedResponse < Fog::Vcloud::Errors::MalformedResponse; end
+      # class DuplicateName     < Fog::Vcloud::Errors::DuplicateName; end
+      # class TaskError         < Fog::Vcloud::Errors::TaskError; end
 
       requires   :vcloud_username, :vcloud_password, :vcloud_org, :vcloud_host
       recognizes :vcloud_port, :vcloud_scheme, :vcloud_path, :vcloud_version, :vcloud_base_path
@@ -61,8 +33,8 @@ module Fog
       #collection :networks
       #model :server
       #collection :servers
-      #model :task
-      #collection :tasks
+      model :task
+      collection :tasks
       model :vapp
       collection :vapps
       model :vm
@@ -90,7 +62,6 @@ module Fog
       #request :get_network_ip
       #request :get_network_ips
       #request :get_network_extensions
-      #request :get_task_list
       #request :get_vapp_template
       #request :get_vm_disks
       #request :get_vm_memory
@@ -99,23 +70,94 @@ module Fog
       # for me to do
       request :instantiate_vapp_template
       request :login
-      #request :power_off
-      #request :power_on
-      #request :power_reset
-      #request :power_shutdown
-      #request :undeploy
+      request :post_power_off_vapp
+      request :post_power_on_vapp
+      request :post_reset_vapp
+      request :post_suspend_vapp
+      request :post_shutdown_vapp
+      request :post_undeploy_vapp
+      request :delete_vapp
       #request :get_metadata
       #request :delete_metadata
       #request :configure_metadata
-      #request :delete_vapp
       request :get_vapp
       request :get_catalog_item
       request :get_catalog
-
-      # All my additions
       request :get_organizations
       request :get_organization
       request :get_vdc
+      request :post_cancel_task
+      request :get_task_list
+      request :get_task
+
+      # inherit from this model
+      class Model < Fog::Model
+        def initialize(attrs={})
+          super(attrs)
+          lazy_load_attrs.each do |attr|
+            attributes[attr]= NonLoaded if attributes[attr].nil?
+            make_lazy_load_method(attr)
+          end
+          self.class.attributes.each {|attr| make_attr_loaded_method(attr)}
+        end
+
+        def lazy_load_attrs
+          @lazy_load_attrs ||= self.class.attributes - attributes.keys
+        end
+
+        def make_lazy_load_method(attr)
+          self.class.instance_eval do
+            define_method(attr) do
+              reload if attributes[attr] == NonLoaded and !@inspecting
+              attributes[attr]
+            end
+          end
+        end
+
+        # it adds an attr_loaded? method to know if the value has been loaded
+        # yet or not: ie description_loaded?
+        def make_attr_loaded_method(attr)
+          self.class.instance_eval do
+            define_method("#{attr}_loaded?") do
+              attributes[attr] != NonLoaded
+            end
+          end
+        end
+
+        def inspect
+          @inspecting = true
+          out = super
+          @inspecting = false
+          out
+        end
+      end
+
+      class Collection < Fog::Collection
+        def all(lazy_load = true)
+          lazy_load ? index : get_everyone
+        end
+
+        def get(item_id)
+          item = get_by_id(item_id)
+          return nil unless item
+          new(item)
+        end
+
+        def get_by_name(item_name)
+          item_found = item_list.find {|item| item[:name] == item_name}
+          return nil unless item_found
+          get(item_found[:id])
+        end
+
+        def index
+          load(item_list)
+        end
+
+        def get_everyone
+          items = item_list.map {|item| get_by_id(item[:id])}
+          load(items)
+        end
+      end
 
       class Mock
         def initialize(options={})
@@ -155,7 +197,7 @@ module Fog
           str.split("/")[0...amount].join("/") + "/"
         end
 
-        def add_id_from_href!(data={})
+        def add_id_from_href!(data = {})
           data[:id] = data[:href].split('/').last
           data
         end
@@ -210,6 +252,17 @@ module Fog
           "#{@scheme}://#{@host}#{@base_path}"
         end
 
+        def process_task(response_body)
+          task = tasks.new(add_id_from_href!(response_body))
+          wait_and_raise_unless_success(task)
+          true
+        end
+
+        def wait_and_raise_unless_success(task)
+          task.wait_for { non_running? }
+          raise "status: #{task.status}, error: #{task.error}" unless task.success?
+        end
+
         private
 
         def ensure_uri(uri)
@@ -249,7 +302,7 @@ module Fog
             path = "#{@base_path}/#{params[:path]}"
           end
 
-          path
+          path + (params[:query] || "")
         end
 
         # Actually do the request

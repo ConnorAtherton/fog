@@ -1,8 +1,12 @@
 module Fog
-  module Vcloud
-    class Compute
+  module Compute
+    class Vcloud
       class Real
-        basic_request :get_task_list
+        def get_task_list(id)
+          request({
+            path: "tasksList/#{id}"
+          })
+        end
       end
     end
   end

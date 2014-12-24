@@ -20,6 +20,7 @@ module Fog
 
           # @todo Move all the logic to a generator.
           data = generate_instantiate_vapp_template_request(params)
+          binding.pry
 
           request(
             :body    => data,

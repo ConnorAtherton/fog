@@ -9,26 +9,14 @@ module Fog
 
         attribute :organization
 
-        def all
+        def item_list
           catalogs = organization.links.select { |link| link[:type] == "application/vnd.vmware.vcloud.catalog+xml" }
           catalogs.each {|c| service.add_id_from_href!(c) }
-          load(catalogs)
+          catalogs
         end
 
         def get_by_id(id)
-          catalog = service.get_catalog(id)
-          new(catalog)
-        end
-
-        def item_by_name(name)
-          res = nil
-          items = all.map { |catalog| catalog.catalog_items }
-          items.each do |i|
-            i.map do |ii|
-              res = ii if ii.name == name
-            end
-          end
-          res
+          service.get_catalog(id).data[:body]
         end
       end
     end

@@ -1,25 +1,26 @@
+require 'fog/core/collection'
 require 'fog/vcloud/models/compute/task'
 
 module Fog
-  module Vcloud
-    class Compute
-      class Tasks < Fog::Vcloud::Collection
-        model Fog::Vcloud::Compute::Task
+  module Compute
+    class Vcloud
+      class Tasks < Collection
+        model Fog::Compute::Vcloud::Task
 
         attribute :href, :aliases => :Href
+        attribute :organization
 
-        def all
-          self.href = service.default_vdc_href unless self.href
-          check_href!
-          if data = service.get_task_list(href).body[:Task]
-            load(data)
-          end
+        def item_list
+          data = service.get_task_list(organization.id).body
+          data = data[:Task].each {|task| service.add_id_from_href!(task)}
         end
 
-        def get(uri)
-          service.get_task(uri)
-        rescue Fog::Errors::NotFound
-          nil
+        def get_by_id(id)
+          data = service.get_task(id).body
+          return nil unless data
+          service.add_id_from_href!(data)
+          data[:progress] ||= 0
+          data
         end
       end
     end

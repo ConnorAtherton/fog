@@ -9,15 +9,15 @@ module Fog
 
         attribute :cat
 
-        def all
+        def item_list
           catalog = service.get_catalog(cat.id)
           items = catalog.body[:CatalogItems]
-          load(items[:CatalogItem]) if items.size > 0
+          items[:CatalogItem]
         end
 
         def get_by_id(id)
           data = service.get_catalog_item(id)
-          data.body ? new(data.body) : nil
+          data.body
         end
       end
     end

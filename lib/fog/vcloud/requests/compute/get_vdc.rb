@@ -3,9 +3,9 @@ module Fog
     class Vcloud
       class Real
         def get_vdc(id)
-          res = request({
+          request(
             path: "vdc/#{id}"
-          })
+          )
         end
       end
     end

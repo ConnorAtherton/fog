@@ -1,11 +1,13 @@
 module Fog
-  module Vcloud
-    class Compute
+  module Compute
+    class Vcloud
       class Real
-        def delete_vapp
+        def delete_vapp(id, force=true)
           request({
             path: "vApp/#{id}",
-            method: "DELETE"
+            expects: 200,
+            method: 'DELETE',
+            query: (force ? "?force=true" : nil)
           })
         end
       end

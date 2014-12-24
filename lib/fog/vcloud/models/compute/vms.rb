@@ -21,29 +21,22 @@ module Fog
         attribute :memory, :type => :integer
         attribute :hard_disks, :aliases => :disks
 
-        def all
+        def item_list
           entities = vapp.children
           return [] if entities == ""
 
           if entities.is_a?(Hash) && entities[:type] == "application/vnd.vmware.vcloud.vm+xml"
-            return [new(service.add_id_from_href!(entities))]
+            return [service.add_id_from_href!(entities)]
           end
 
           vms = entities.select { |re| re[:type] == "application/vnd.vmware.vcloud.vm+xml" }
           vms.each {|v| service.add_id_from_href!(v) }
-          load(vms)
+          vms
         end
 
         def get_by_id(id)
-          all_vms = all
-          return "" if all_vms == ""
-
-          if all_vms.is_a?(Hash) && all_vms[:type] == "application/vnd.vmware.vcloud.vm+xml"
-            return new(service.add_id_from_href!(all_vms))
-          end
-
-          item = all_vms.find {|vm| vm[:id] == id}
-          new(item)
+          item = item_list.find {|vm| vm[:id] == id}
+          item
         end
       end
     end

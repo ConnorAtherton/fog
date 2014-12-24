@@ -9,16 +9,17 @@ module Fog
 
         attribute :organization
 
-        def all
+        def item_list
           data = service.get_organization(organization.id).body
           items = data[:Link].select { |link| link[:type] == "application/vnd.vmware.vcloud.vdc+xml" }
           items.each {|v| service.add_id_from_href!(v) }
-          load(items)
+          items
         end
 
         def get_by_id(id)
-          vdc = service.get_vdc(id).data[:body]
-          new(vdc)
+          vdc = service.get_vdc(id)
+          return nil if vdc.nil?
+          service.add_id_from_href!(vdc.data[:body])
         end
       end
     end

@@ -10,19 +10,20 @@ module Fog
         attribute :href
         attribute :vdc
 
-        def all
+        def item_list
           entities = vdc.resource_entities
-          return [] if entities == ""
-          return new(service.add_id_from_href!(entities)) if entities.is_a?(Hash)
+          return nil if entities == ""
+          return [service.add_id_from_href!(entities)] if entities.is_a?(Hash)
 
           vapps = vdc.resource_entities.select { |re| re[:type] == "application/vnd.vmware.vcloud.vApp+xml" }
           vapps.each {|v| service.add_id_from_href!(v) }
-          load(vapps)
+          vapps
         end
 
         def get_by_id(id)
           data = service.get_vapp(id).data[:body]
-          new(service.add_id_from_href!(data))
+          service.add_id_from_href!(data)
+          data
         end
       end
     end

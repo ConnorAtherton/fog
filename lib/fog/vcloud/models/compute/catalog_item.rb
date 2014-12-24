@@ -14,18 +14,9 @@ module Fog
         attribute :vapp_template_id
 
         def instantiate(vapp_name, options = {})
+          id = self.id.split(":").last
           response = service.instantiate_vapp_template(vapp_name, id, options)
           binding.pry
-        end
-
-        def customization_options
-          load_unless_loaded!
-          if data = service.get_customization_options( link[:href] ).body
-            data.delete_if { |key, value| [:xmlns_i, :xmlns].include?(key) }
-            data
-          else
-            nil
-          end
         end
 
         def password_enabled?
